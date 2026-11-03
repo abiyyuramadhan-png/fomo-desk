@@ -145,7 +145,7 @@ document.addEventListener("click",async e=>{
 });
 let lastW=innerWidth;addEventListener("resize",()=>{if(innerWidth!==lastW){lastW=innerWidth;if(S&&!sub)render()}});
 if("serviceWorker" in navigator&&location.protocol=="https:")navigator.serviceWorker.register("sw.js");
-if(!DP&&!LOCAL){app.innerHTML=`<div class="empty">Open the private link from Telegram to connect this app to your desk.</div>`}else poll();
+if(!DP&&!LOCAL){app.innerHTML=`<div class="empty">Open the private link from Telegram to connect this app to your desk.<br><br>Or paste that link here:<br><input id="pl" style="width:100%;margin-top:8px;padding:12px;border-radius:10px;border:0;background:#1c1c1e;color:#fff;font-size:16px" placeholder="Paste link"><button id="pb" style="margin-top:8px;width:100%;min-height:44px;border:0;border-radius:10px;background:#0a84ff;color:#fff;font-size:16px">Connect</button></div>`;document.getElementById("pb").onclick=()=>{const v=document.getElementById("pl").value.trim();const m=v.match(/d=([A-Za-z0-9_-]{32,})/)||v.match(/^([A-Za-z0-9_-]{32,})$/);if(m){localStorage.setItem("desk.d",m[1]);location.reload()}}}else poll();
 // test hooks for screenshots
 window.__desk={go:(t,s)=>{tab=t;sub=s||null;if(s&&s.coin)coin(s.coin);else render()},range:r=>{range=r;render()}};
 })();
