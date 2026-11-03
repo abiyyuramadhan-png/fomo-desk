@@ -20,14 +20,17 @@ async function findBase(){
   const now=Math.floor(Date.now()/1000/SLOT);
   for(let k=2;k<=12;k++){const b=`https://raw.githubusercontent.com/${REPO}/s${now-k}/d/${DP}/`;
     try{const st=await getJ(b+"state.json");return [b,st]}catch(e){}}
-  throw new Error("no slot");
+  // fallback: stable branch (CDN may cache ~5 min) so a paused desk shows its last data, not "never"
+  const lb=`https://raw.githubusercontent.com/${REPO}/latest/d/${DP}/`;
+  const st=await getJ(lb+"state.json");st._stale=true;return [lb,st];
 }
 async function poll(){
   try{
     let st;const f=await findBase();if(Array.isArray(f)){[base,st]=f}else{base=f;st=await getJ(base+"state.json")}
     const[ch,ac]=await Promise.all([getJ(base+"chart.json"),getJ(base+"activity.json")]);
-    S=st;CH=ch;AC=ac;lastOk=Date.now();fails=0;$("#offline").hidden=true;render();
-    setTimeout(poll,POLL*1000);
+    S=st;CH=ch;AC=ac;render();
+    if(st._stale||Date.now()/1000-st.ts>120){lastOk=st.ts*1000;fails++;retryIn=Math.min(60,5*fails);offline();return}
+    lastOk=Date.now();fails=0;$("#offline").hidden=true;setTimeout(poll,POLL*1000);
   }catch(e){fails++;retryIn=Math.min(60,5*fails);offline();}
 }
 function offline(){
