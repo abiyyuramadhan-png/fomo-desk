@@ -1,104 +1,13 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="robots" content="noindex"><meta name="apple-mobile-web-app-capable" content="yes">
-<title>Desk</title>
-<style>
-:root{--bg:#0b0d12;--card:#141821;--line:#232937;--tx:#e8ecf3;--mut:#8a93a6;--g:#2fd27a;--r:#ff5a6a;--c:#3fd0ff;--o:#ff9f2e}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.35 -apple-system,system-ui,sans-serif;padding-bottom:76px}
-header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px 6px}
-h1{font-size:20px;margin:0}.pill{font-size:12px;padding:3px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mut)}
-.paper{color:var(--o);border-color:var(--o)}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;margin:10px 12px;padding:14px}
-.big{font-size:30px;font-weight:700}.mut{color:var(--mut);font-size:13px}.row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-top:1px solid var(--line)}
-.row:first-child{border-top:0}.g{color:var(--g)}.r{color:var(--r)}.c{color:var(--c)}.o{color:var(--o)}
-a{color:var(--c);text-decoration:none}.kill{color:var(--mut);text-decoration:line-through;text-decoration-color:var(--r)}
-nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#0f1218;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
-nav button{flex:1;background:none;border:0;color:var(--mut);padding:14px 0;font-size:13px}nav button.on{color:var(--tx);font-weight:600}
-.strips{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:8px 0}.strip{height:6px;border-radius:3px;background:var(--line)}
-.strip.ok{background:var(--g)}.strip.bad{background:var(--r)}.ring{width:56px;height:56px}
-.layer{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}.dot{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:13px;background:var(--line)}
-.dot.ok{background:var(--g);color:#000}.dot.bad{background:var(--r)}.empty{text-align:center;color:var(--mut);padding:30px 10px}
-.err{border-color:var(--r)}.btn{display:inline-block;background:var(--c);color:#001018;padding:10px 14px;border-radius:12px;font-weight:600}
-.back{color:var(--mut);padding:6px 16px;display:block}.tag{font-size:11px;padding:2px 6px;border-radius:6px;background:var(--line)}
-svg text{fill:var(--mut);font-size:10px}
-</style></head><body>
-<header><h1 id="ttl">Desk</h1><span id="mode" class="pill">…</span></header>
-<main id="app"></main>
-<nav><button data-t="home">Home</button><button data-t="agents">Agents</button><button data-t="activity">Activity</button><button data-t="account">Account</button></nav>
-<script>
-const REPO="abiyyuramadhan-png/fomo-desk",SLOT=15;
-const qs=new URLSearchParams(location.search),hp=new URLSearchParams(location.hash.slice(1));
-if(hp.get("d")){localStorage.setItem("dp",hp.get("d"));history.replaceState(null,"",location.pathname+location.search)}
-const DP=localStorage.getItem("dp");
-let S=null,ERR=null,view={t:qs.get("view")||"home",mint:qs.get("coin")};
-const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const usd=v=>v==null?"–":"$"+(Math.abs(v)>=1000?(v/1000).toFixed(1)+"K":(+v).toFixed(2)),pct=v=>v==null?"–":(v>0?"+":"")+(+v).toFixed(1)+"%";
-const ago=t=>{const s=Date.now()/1000-t;return s<90?Math.round(s)+"s":s<5400?Math.round(s/60)+"m":Math.round(s/3600)+"h"};
-const cl=(m,n)=>{const c=S&&S.coins&&S.coins[m];const l=(c&&c.link)||(S.scans.find(x=>x.mint==m)||{}).link;return `<a href="#" onclick="go('coin','${esc(m)}');return false">${esc(n||m.slice(0,6))}</a>`+(l?` <a class="tag" href="${esc(l)}" target="_blank">FOMO</a>`:"")};
-async function load(){
-  if(qs.get("src")){try{const r=await fetch(qs.get("src")+"?"+Date.now());if(!r.ok)throw Error("HTTP "+r.status);S=await r.json();ERR=null}catch(e){ERR=e.message}return render()}
-  if(!DP){ERR="no-key";return render()}
-  const now=Math.floor(Date.now()/1000/SLOT);let last;
-  for(const k of [2,3,4,5]){try{const r=await fetch(`https://raw.githubusercontent.com/${REPO}/s${now-k}/d/${DP}/state.json`);if(r.ok){S=await r.json();ERR=null;return render()}last="HTTP "+r.status}catch(e){last=e.message}}
-  ERR=last;render()
-}
-function go(t,m){view={t,mint:m};render();scrollTo(0,0)}
-document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>go(b.dataset.t));
-function hb(a){const t=S.heartbeats[a];return t&&Date.now()/1000-t<120}
-function render(){
-  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.t==view.t));
-  const A=$("#app");
-  if(ERR&&!S){$("#mode").textContent="offline";A.innerHTML=ERR=="no-key"?`<div class="card empty">This desk needs its link.<br>Open the full link with <b>#d=…</b> once on this phone.</div>`:`<div class="card err empty"><b class="r">Can't reach the desk</b><br>${esc(ERR)}<br><span class="mut">Retrying every 15s.</span></div>`;return}
-  const stale=S.ts&&Date.now()/1000-S.ts>120;
-  $("#mode").textContent=S.mode+(stale?" · stale "+ago(S.ts):"");$("#mode").className="pill"+(S.mode=="PAPER"?" paper":"");
-  A.innerHTML=(stale?`<div class="card err mut">Last update ${ago(S.ts)} ago. The desk may be down.</div>`:"")+({home,agents,activity,account,auditor,coin}[view.t]||home)();
-}
-function home(){
-  const open=S.positions.filter(p=>p.status=="open"||p.status=="exiting"),pnl=S.balance-S.startStack;
-  return `<div class="card"><div class="mut">${S.mode=="PAPER"?"PAPER balance":"Stack"}</div><div class="big">${usd(S.balance)}</div>
-  <div class="${pnl>=0?"g":"r"}">${pnl>=0?"+":""}${usd(pnl)} since start</div><div class="mut">in positions ${usd(S.inPositions)} · updated ${ago(S.ts)} ago</div></div>
-  <div class="card"><b>Open positions</b>${open.length?open.map(p=>{const ch=100*((p.last_price||p.entry)/p.entry-1);return `<div class="row"><span>${cl(p.mint,p.name)}<br><span class="mut">${usd(p.size)} · stop -${p.stop_pct}%</span></span><span class="${ch>=0?"g":"r"}">${pct(ch)}</span></div>`}).join(""):`<div class="empty">No open positions.<br>Risk is idle.</div>`}</div>
-  <div class="card"><b>Tonight</b><div class="row"><span>Pools seen</span><b>${S.counts.pools}</b></div><div class="row"><span>Taken apart</span><b>${S.counts.audited}</b></div><div class="row"><span>Trades</span><b>${S.counts.trades}</b></div></div>
-  <div class="card"><b>Latest</b>${S.activity.slice(0,5).map(actRow).join("")||`<div class="empty">Nothing yet tonight.</div>`}</div>`}
-function actRow(a){return `<div class="row"><span><b class="${a.tone=="red"?"r":a.tone=="green"?"g":a.tone=="cyan"?"c":""}">${esc(a.title)}</b> ${a.mint?cl(a.mint,""):""}<br><span class="mut">${esc(a.sub)} · ${ago(a.ts)}</span></span><span class="mut">${esc(a.value)}</span></div>`}
-function ring(v){const on=v!=null&&v>=S.settings["analyst.min_score"],d=2*Math.PI*24,f=v==null?0:v/100*d;return `<svg class="ring" viewBox="0 0 56 56"><circle cx="28" cy="28" r="24" stroke="#232937" stroke-width="6" fill="none"/><circle cx="28" cy="28" r="24" stroke="${on?"#2fd27a":"#8a93a6"}" stroke-width="6" fill="none" stroke-dasharray="${f} ${d}" transform="rotate(-90 28 28)"/><text x="28" y="33" text-anchor="middle" style="font-size:15px;fill:#e8ecf3">${v??"–"}</text></svg>`}
-function st(a){return `<span class="pill ${hb(a)?"g":"r"}">${S.paused.includes(a)?"paused":hb(a)?"live":"down"}</span>`}
-function agents(){
-  const la=S.audits[0],an=S.analyses[0],ex=S.execs[0],open=S.positions.filter(p=>p.status=="open"),lx=S.positions.find(p=>p.status=="closed");
-  return `<div class="card"><div class="row"><b>1 · Scanner</b>${st("scanner")}</div><div class="big">${S.counts.pools} pools</div><div class="mut">${S.counts.waiting} waiting · ${S.counts.passed} passed · ws reconnects 1h: ${S.wsReconnects}</div>
-  ${S.scans.slice(0,8).map(s=>s.verdict=="pass"?`<div class="row"><span>${cl(s.mint,s.name)} · liq ${usd(s.liquidityUsd)} · → auditor</span></div>`:`<div class="row"><span class="kill">${esc(s.name||s.mint.slice(0,6))}</span><span class="r mut">${esc(s.reason)}</span></div>`).join("")||`<div class="empty">Waiting for the first graduation.</div>`}</div>
-  <div class="card" onclick="go('auditor')"><div class="row"><b>2 · Auditor</b>${st("auditor")}</div><div class="big">${S.counts.audited} taken apart</div>
-  ${la?`<div class="strips">${la.layers.map(l=>`<div class="strip ${l.pass?"ok":l.pass===false?"bad":""}"></div>`).join("")}</div><div>${la.passed?`<span class="g">8/8 → Executor</span>`:`<span class="r">${esc(la.reason)}</span>`} · ${cl(la.mint,(S.coins[la.mint]||{}).name)}</div>`:`<div class="empty">Nothing to take apart yet.</div>`}<div class="mut">${S.counts.auditRejected} rejected · tap for layers</div></div>
-  <div class="card"><div class="row"><b>3 · Analyst (rules)</b>${st("analyst")}</div><div class="row"><span>Scoring<br><span class="mut">${an?cl(an.mint,(S.coins[an.mint]||{}).name)+" · "+(an.passed?"pass":esc(an.failed[0])):"no coin yet"}</span></span>${ring(an?an.score:null)}</div></div>
-  <div class="card"><div class="row"><b>4 · Executor</b>${st("executor")}</div><div class="big">${S.counts.trades} trades</div><div class="mut">${ex?`${usd(ex.sizeUsd)} · ${ex.stackPct}% of stack · ${ex.status=="bought"?"✓ Filled":esc(ex.status+" "+(ex.reason||""))}`:`${S.settings["executor.stack_pct"]}% of stack per ticket`}</div></div>
-  <div class="card"><div class="row"><b>5 · Risk</b>${st("risk")}</div><div class="big">${open.length?"Guarding":"Idle"}</div><div class="mut">${lx?"last exit: "+(lx.exit_reason=="trail"?"Trailed out":lx.exit_reason=="stop"?"Stopped":esc(lx.exit_reason)):"no exits yet"}</div>
-  <div style="margin-top:8px"><span class="pill r">stop -${S.settings["risk.stop_pct"]}%</span> <span class="pill g">trail ${S.settings["risk.trail_pct"]}%</span></div></div>`}
-function auditor(){
-  const a=view.mint?S.audits.find(x=>x.mint==view.mint):S.audits[0];
-  if(!a)return `<a class="back" href="#" onclick="go('agents');return false">‹ Agents</a><div class="card empty">Auditor hasn't taken a coin apart yet tonight.</div>`;
-  return `<a class="back" href="#" onclick="go('agents');return false">‹ Agents</a><div class="card"><b>Auditor · ${cl(a.mint,(S.coins[a.mint]||{}).name)}</b><div class="${a.passed?"g":"r"}">${a.passed?"8/8 → Executor":"Rejected · "+esc(a.reason)}</div>
-  ${a.layers.map(l=>`<div class="layer"><span class="dot ${l.pass?"ok":l.pass===false?"bad":""}">${l.pass?"✓":l.pass===false?"✕":"·"}</span><span style="flex:1">${l.n} ${esc(l.name)}<br><span class="mut">${esc(l.source)}</span></span><span class="${l.pass===false?"r":l.pass?"":"mut"}">${esc(l.value)}</span></div>`).join("")}</div>
-  <div class="card"><b>Recent</b>${S.audits.slice(0,12).map(x=>`<div class="row" onclick="view.mint='${x.mint}';render()"><span>${esc((S.coins[x.mint]||{}).name||x.mint.slice(0,6))}</span><span class="${x.passed?"g":"r"} mut">${x.passed?"8/8":esc(x.reason)}</span></div>`).join("")}</div>`}
-function chart(c){
-  const P=c.prices;if(!P||P.length<2)return `<div class="empty">No candles yet.</div>`;
-  const b={};P.forEach(([t,p])=>{const k=Math.floor(t/60);b[k]?(b[k].h=Math.max(b[k].h,p),b[k].l=Math.min(b[k].l,p),b[k].c=p):b[k]={o:p,h:p,l:p,c:p}});
-  const K=Object.keys(b).sort().slice(-40).map(k=>b[k]);const vals=K.flatMap(x=>[x.h,x.l]).concat(c.exitLine?[c.exitLine]:[]);
-  const mx=Math.max(...vals),mn=Math.min(...vals),H=180,W=360,y=v=>8+(H-16)*(1-(v-mn)/((mx-mn)||1)),w=W/K.length;
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%">${K.map((k,i)=>`<line x1="${i*w+w/2}" x2="${i*w+w/2}" y1="${y(k.h)}" y2="${y(k.l)}" stroke="${k.c>=k.o?"#2fd27a":"#ff5a6a"}"/><rect x="${i*w+1}" width="${Math.max(1,w-2)}" y="${Math.min(y(k.o),y(k.c))}" height="${Math.max(1,Math.abs(y(k.o)-y(k.c)))}" fill="${k.c>=k.o?"#2fd27a":"#ff5a6a"}"/>`).join("")}
-  ${c.exitLine?`<line x1="0" x2="${W}" y1="${y(c.exitLine)}" y2="${y(c.exitLine)}" stroke="#ff9f2e" stroke-dasharray="6 4"/><text x="4" y="${y(c.exitLine)-4}" style="fill:#ff9f2e">Risk trailing stop</text>`:""}</svg>`}
-function coin(){
-  const c=S.coins[view.mint];const back=`<a class="back" href="#" onclick="go('home');return false">‹ Back</a>`;
-  if(!c)return back+`<div class="card empty">No data for this coin on the desk.</div>`;
-  const p=c.position,last=c.prices.length?c.prices[c.prices.length-1][1]:null;
-  return back+`<div class="card"><div class="row"><b>${esc(c.name||c.mint.slice(0,6))} <span class="mut">${esc(c.symbol||"")}</span></b><a class="btn" href="${esc(c.link)}" target="_blank">Open on FOMO</a></div>
-  <div class="mut">${last!=null?"$"+(+last).toPrecision(4):"no price"} · holders ${c.holders??"–"} · ${esc(c.mint.slice(0,4)+"…"+c.mint.slice(-4))}</div>${chart(c)}</div>
-  ${p?`<div class="card"><b>Position · ${esc(p.mode)}</b><div class="row"><span>Entry</span><span>$${(+p.entry).toPrecision(4)}</span></div><div class="row"><span>Size</span><span>${usd(p.size)}</span></div><div class="row"><span>Stop</span><span class="r">-${p.stop_pct}%</span></div><div class="row"><span>Status</span><span>${esc(p.status)} ${p.exit_reason?"· "+esc(p.exit_reason):""} ${p.pnl!=null?usd(p.pnl):""}</span></div></div>`:""}
-  ${c.audit?`<div class="card"><b>Auditor</b><div class="strips">${c.audit.layers.map(l=>`<div class="strip ${l.pass?"ok":l.pass===false?"bad":""}"></div>`).join("")}</div><div class="mut">${c.audit.passed?"8/8":esc(c.audit.reason)}</div></div>`:""}
-  ${c.analysis&&c.analysis.answers?`<div class="card"><div class="row"><b>Analyst (rules)</b>${ring(c.analysis.score)}</div>${Object.entries(c.analysis.answers).map(([k,v])=>`<div class="row"><span>${k}</span><span>${(+v).toFixed(2)}</span></div>`).join("")}</div>`:""}`}
-function activity(){return `<div class="card"><b>Activity</b>${S.activity.map(actRow).join("")||`<div class="empty">No activity yet tonight.</div>`}</div>`}
-function account(){const s=S.settings,g=["scanner","auditor","analyst","executor","risk","desk"];
-  return `<div class="card"><b>FOMO</b><div class="row"><span>Profile</span><a href="${esc(S.profileUrl)}" target="_blank">@${esc(s["desk.fomo_handle"])}</a></div><div class="row"><span>Invite a friend</span><a href="${esc(S.signupUrl)}" target="_blank">${esc(S.signupUrl.replace("https://",""))}</a></div>
-  <div class="row"><span>Ticket floor</span><span>min stack $${S.minStack}</span></div></div>
-  <div class="card mut">Settings are read-only here. Change them in Telegram, e.g. <b>set stop to -8%</b>.</div>
-  ${g.map(x=>`<div class="card"><b>${x=="analyst"?"Analyst (rules)":x[0].toUpperCase()+x.slice(1)}</b>${Object.entries(s).filter(([k])=>k.startsWith(x+".")&&!/rpc_url|owner_chat/.test(k)).map(([k,v])=>`<div class="row"><span class="mut">${k.split(".")[1]}</span><span>${esc(v)}</span></div>`).join("")}</div>`).join("")}`}
-load();setInterval(load,15000);
-</script></body></html>
+<meta name="robots" content="noindex"><meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Desk">
+<link rel="apple-touch-icon" href="icons/icon-180.png"><link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="app.css"><title>Desk</title></head><body>
+<header class="nav"><h1 id="ttl">Desk</h1><span id="mode" class="pill paper" hidden>PAPER</span></header>
+<div id="offline" class="offline" hidden></div>
+<main id="app"><div class="loading"><div class="sk"></div><div class="sk"></div><div class="sk short"></div></div></main>
+<nav class="tabs"><button data-t="home">Home</button><button data-t="agents">Agents</button><button data-t="activity">Activity</button><button data-t="account">Account</button></nav>
+<div id="toast" class="toast" hidden></div>
+<script src="chart.js"></script><script src="app.js"></script></body></html>
