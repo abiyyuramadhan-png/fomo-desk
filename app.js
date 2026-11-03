@@ -69,7 +69,7 @@ function home(){
    <div class="ranges">${Object.keys(CH.ranges).map(k=>`<button data-r="${k}" class="${k==range?"on":""}">${k}</button>`).join("")}</div>
    <div class="sec">Agents</div><div class="carousel">${S.agents.map(a=>agentCard(a)).join("")}</div>
    <div class="sec">Activity</div><div class="card">${S.lastActivity.length?S.lastActivity.slice(0,5).map(actRow).join(""):`<div class="empty">Nothing yet tonight</div>`}</div>`;
-  odoPrev="";odometer($("#odo"),usd(S.balance));Charts.line($("#ch"),pts,CH.ranges[range].marks);sizeCards();
+  odometer($("#odo"),usd(S.balance));Charts.line($("#ch"),pts,CH.ranges[range].marks);sizeCards();
 }
 function agents(){
   if(sub&&sub.agent=="auditor")return auditor(sub.mint);
@@ -143,7 +143,7 @@ document.addEventListener("click",async e=>{
   else if(t.dataset.agent){tab="agents";sub=null;render()}
   else if(t.dataset.coin){sub={coin:t.dataset.coin};scrollTo(0,0);coin(t.dataset.coin)}
 });
-addEventListener("resize",()=>{if(S&&!sub)render()});
+let lastW=innerWidth;addEventListener("resize",()=>{if(innerWidth!==lastW){lastW=innerWidth;if(S&&!sub)render()}});
 if("serviceWorker" in navigator&&location.protocol=="https:")navigator.serviceWorker.register("sw.js");
 if(!DP&&!LOCAL){app.innerHTML=`<div class="empty">Open the private link from Telegram to connect this app to your desk.</div>`}else poll();
 // test hooks for screenshots
