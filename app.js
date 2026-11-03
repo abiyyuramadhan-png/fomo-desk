@@ -18,7 +18,7 @@ async function getJ(u){const r=await fetch(u,{cache:"no-store"});if(!r.ok)throw 
 async function findBase(){
   if(LOCAL)return LOCAL.replace(/\/$/,"")+"/";
   const now=Math.floor(Date.now()/1000/SLOT);
-  for(let k=2;k<=5;k++){const b=`https://raw.githubusercontent.com/${REPO}/s${now-k}/d/${DP}/`;
+  for(let k=2;k<=12;k++){const b=`https://raw.githubusercontent.com/${REPO}/s${now-k}/d/${DP}/`;
     try{const st=await getJ(b+"state.json");return [b,st]}catch(e){}}
   throw new Error("no slot");
 }
