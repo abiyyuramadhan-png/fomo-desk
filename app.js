@@ -11,7 +11,7 @@ const px=v=>v==null?"—":v<0.0001?"$"+Number(v).toExponential(3):"$"+Number(v).
 const hm=ts=>{const d=new Date(ts*1000);return d.toTimeString().slice(0,5)};
 // DATA_PATH: #d= fragment -> localStorage, then strip from the address bar
 let DP=new URLSearchParams(location.hash.slice(1)).get("d");
-if(DP){localStorage.setItem("desk.d",DP);history.replaceState(null,"",location.pathname+location.search)}else DP=localStorage.getItem("desk.d");
+if(DP){localStorage.setItem("desk.d",DP)}else DP=localStorage.getItem("desk.d");
 const LOCAL=new URLSearchParams(location.search).get("src"); // dev/screenshot override: a local folder holding the JSON files
 let S=null,CH=null,AC=null,base=null,lastOk=null,range="LIVE",tab="home",sub=null,page=1,retryIn=0,fails=0,coinCache={};
 async function getJ(u){const r=await fetch(u,{cache:"no-store"});if(!r.ok)throw new Error(r.status);return r.json()}
