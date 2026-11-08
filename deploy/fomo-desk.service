@@ -1,0 +1,38 @@
+[Unit]
+Description=FOMO paper desk
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=fomo
+Group=fomo
+WorkingDirectory=/opt/fomo-desk/desk
+EnvironmentFile=/etc/fomo-desk/env
+Environment=DESK_DB=/var/lib/fomo-desk/data/desk.db
+Environment=DESK_PID=/var/lib/fomo-desk/data/desk.pid
+Environment=DESK_SYSTEMD=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+ExecStart=/opt/fomo-desk/deploy/run-paper.sh
+ExecStopPost=/bin/rm -f /var/lib/fomo-desk/data/desk.pid
+Restart=always
+RestartSec=5
+RestartPreventExitStatus=78
+TimeoutStopSec=30
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/fomo-desk /var/log/fomo-desk
+StateDirectory=fomo-desk
+LogsDirectory=fomo-desk
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fomo-desk
+MemoryMax=600M
+
+[Install]
+WantedBy=multi-user.target

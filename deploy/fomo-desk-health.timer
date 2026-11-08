@@ -1,0 +1,11 @@
+[Unit]
+Description=Check FOMO desk heartbeats
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+AccuracySec=30s
+Unit=fomo-desk-health.service
+
+[Install]
+WantedBy=timers.target

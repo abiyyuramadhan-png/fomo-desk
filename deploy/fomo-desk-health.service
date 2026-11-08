@@ -1,0 +1,12 @@
+[Unit]
+Description=FOMO desk heartbeat check
+After=fomo-desk.service
+
+[Service]
+Type=oneshot
+Environment=DESK_SYSTEMD=1
+Environment=DESK_DB=/var/lib/fomo-desk/data/desk.db
+Environment=DESK_PID=/var/lib/fomo-desk/data/desk.pid
+ExecStart=/opt/fomo-desk/deploy/health-timer.sh
+TimeoutStartSec=180
+Nice=10

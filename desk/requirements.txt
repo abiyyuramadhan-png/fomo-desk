@@ -1,0 +1,4 @@
+# Pinned for the Ubuntu 24.04 / Python 3.13 venv. Desk imports only these three.
+httpx==0.28.1
+websockets==14.2
+solders==0.26.0
