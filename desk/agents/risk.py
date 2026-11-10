@@ -5,6 +5,7 @@ flog = logging.getLogger("risk.file")
 class Risk:
     def __init__(self, notify, dex=None, clock=time.time):
         self.notify = notify; self.dex = dex or net.Dex.tokens; self.clock = clock
+        self.lock = asyncio.Lock()   # wake refresh and the regular loop must never exit the same position twice
     def apply_tighter_stop(self):
         s = settings.get("risk.stop_pct")
         db.x("update positions set stop_pct=? where status='open' and stop_pct>?", s, s)
@@ -17,6 +18,8 @@ class Risk:
             db.heartbeat("risk")
             await asyncio.sleep(settings.get("risk.poll_s"))
     async def poll_once(self):
+        async with self.lock: return await self._poll_once()
+    async def _poll_once(self):
         ps = db.q("select * from positions where status='open'")
         if not ps: return []
         self.apply_tighter_stop(); ps = db.q("select * from positions where status='open'")

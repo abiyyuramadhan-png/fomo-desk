@@ -122,6 +122,7 @@ async def price_other_coins():
     import net
     while True:
         try:
+            import wake; await wake.gate()
             busy = {r["mint"] for r in db.q("select mint from coins where state='waiting'")} | {r["mint"] for r in db.q("select mint from positions where status='open'")}
             ms = [m for m in shown_mints() if m not in busy]
             if ms:
@@ -129,7 +130,7 @@ async def price_other_coins():
                 for m in ms:
                     p = net.pair_fields(pairs.get(m))
                     if p and p["priceUsd"] is not None: db.x("insert into prices(ts,mint,price,vol_m5) values(?,?,?,?)", time.time(), m, p["priceUsd"], p["v5"])
-        except Exception as e: log.warning("price_other_coins %s", e)
+        except Exception as e: log.warning("price_other_coins %s %s", type(e).__name__, e)   # timeouts have empty str()
         db.heartbeat("api_prices"); await asyncio.sleep(60)
 STUB = "<!doctype html><title>404</title><meta name=robots content=noindex><p>Not found.</p>"
 class Publisher:

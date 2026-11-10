@@ -76,7 +76,7 @@ journalctl -u fomo-desk -n 40 --no-pager
 
 Expect `active`. `journalctl` and `/var/log/fomo-desk/desk.log` should both contain `mode PAPER`. Then check Telegram and the app. The app reads the same GitHub Pages site; slot branches and `latest` are still published by the desk, not by this installer.
 
-The heartbeat timer replaces the old `health.py` restart routine. It restarts the service only when that service is already active and a heartbeat is stale. It does not call `run.sh`.
+The heartbeat timer replaces the old `health.py` restart routine. It runs the same wake check as the box: if the `loop` heartbeat is stale too, that was a pause, and it waits instead of killing a healthy process. It restarts the service only when that service is already active and a heartbeat is still stale after that wait. It does not call `run.sh`. `run.sh` also refuses to start a second copy, including the venv process systemd uses.
 
 ## 5. If you have to go back
 

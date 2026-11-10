@@ -7,6 +7,14 @@ def client():
     if _client is None:
         _client = httpx.AsyncClient(timeout=20, headers={"User-Agent": "fomo-desk/1.0"})
     return _client
+def reset_client():
+    """After a box pause, pooled keep-alive connections are usually dead and would hang until timeout.
+    Drop the pool so the next request opens fresh connections."""
+    global _client
+    old, _client = _client, None
+    if old is not None:
+        try: asyncio.get_running_loop().create_task(old.aclose())
+        except RuntimeError: pass
 class RateLimit(Exception): pass
 class Dex:
     calls = []
@@ -54,6 +62,11 @@ async def retry(fn, *a, tries=3, gap=2):
     last = None
     for i in range(tries):
         try: return await fn(*a)
+        except httpx.HTTPStatusError as e:
+            # 4xx (except 429) won't change in 2s, e.g. RugCheck 400s a mint it hasn't indexed yet
+            if 400 <= e.response.status_code < 500 and e.response.status_code != 429: raise
+            last = e
+            if i < tries - 1: await asyncio.sleep(gap)
         except Exception as e:
             last = e
             if i < tries - 1: await asyncio.sleep(gap)

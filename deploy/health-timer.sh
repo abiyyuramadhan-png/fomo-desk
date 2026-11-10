@@ -1,7 +1,7 @@
 #!/bin/bash
 # Heartbeat check for the VPS desk.
 # If the service is stopped (install, cutover, or an operator stop), do nothing.
-# Never calls run.sh, so it cannot start a second desk.
+# health.py then uses systemctl, not run.sh. run.sh also refuses to start a second copy.
 set -euo pipefail
 set +x
 umask 0077

@@ -8,7 +8,7 @@ from agents.analyst import Analyst
 from agents.executor import Executor
 from agents.risk import Risk
 from telegram import Telegram
-import bus
+import bus, wake, net
 from commands import Desk, LIVE_LOCKED
 from api import Publisher, price_other_coins
 def setup_logs():
@@ -24,6 +24,7 @@ async def worker(name, q, fn, obj):
     while True:
         try: item = await asyncio.wait_for(q.get(), timeout=30)
         except asyncio.TimeoutError: db.heartbeat(name); continue
+        await wake.gate()   # after a box pause, Risk re-prices open positions first
         while obj.paused: db.heartbeat(name, "paused"); await asyncio.sleep(5)
         try: await fn(*item) if isinstance(item, tuple) else await fn(item)
         except Exception as e: logging.getLogger(name).exception("%s: %s", name, e)
@@ -37,15 +38,18 @@ async def night_watch(desk, tg):
             if w: await tg.send(("PAPER · " if settings.get("desk.mode") == "PAPER" else "") + w)
         db.heartbeat("desk"); await asyncio.sleep(60)
 WAKE = None
+RISK = None; SCANNER = None
 async def loop_watch():
     """Tick every 5s. A wall-clock jump means the whole box was paused (process frozen, not crashed)."""
     import threading, faulthandler
     st = {"mono": time.monotonic()}
     def guard():   # real event-loop hang (monotonic time passes, loop doesn't tick): dump all stacks once
-        dumped = False
+        dumped = False; grace_until = 0
         while True:
-            time.sleep(10); lag = time.monotonic() - st["mono"]
-            if lag > 60 and not dumped:
+            w0 = time.time(); time.sleep(10); w1 = time.time()
+            if w1 - w0 > 30: grace_until = time.monotonic() + 60   # this thread was frozen too: box pause, not a hang
+            lag = time.monotonic() - st["mono"]
+            if lag > 60 and not dumped and time.monotonic() > grace_until:
                 with open("logs/stall.log", "a") as f:
                     f.write(f"{db.iso()} event loop stuck {lag:.0f}s\n"); faulthandler.dump_traceback(file=f, all_threads=True)
                 dumped = True
@@ -54,10 +58,15 @@ async def loop_watch():
     lg = logging.getLogger("desk"); wall = time.time()
     while True:
         await asyncio.sleep(5); now = time.time(); st["mono"] = time.monotonic()
-        if now - wall > 60:
+        if now - wall > wake.GAP_S:
             lg.warning("box paused/frozen %.0fs (wall-clock gap), resuming", now - wall); db.event("box_pause", {"gap_s": round(now - wall)})
-            if WAKE: WAKE.set()   # backfill migrations missed while frozen
-        wall = now; db.heartbeat("loop")
+            steps = await wake.on_wake(now - wall,
+                risk_refresh=RISK.poll_once if RISK else (lambda: asyncio.sleep(0)),
+                resubscribe=SCANNER.force_reconnect if SCANNER else (lambda: None),
+                backfill=(WAKE.set if WAKE else (lambda: None)),   # backfill migrations missed while frozen
+                reset_http=net.reset_client, log=lg)
+            db.event("wake", steps)
+        wall = time.time(); wake.last_tick = wall; db.heartbeat("loop")
 async def main():
     if LIVE_LOCKED is not True:
         raise SystemExit("refusing to start: LIVE is not locked")
@@ -73,7 +82,7 @@ async def main():
     agents = {"scanner": sc, "auditor": au, "analyst": an, "executor": ex, "risk": rk}
     for a in db.kv_get("paused", []):
         if a in agents: agents[a].paused = True
-    global WAKE; WAKE = sc.wake
+    global WAKE, RISK, SCANNER; WAKE = sc.wake; RISK = rk; SCANNER = sc
     desk = Desk(agents, tg, au, rk); tg.desk = desk
     # re-queue coins that passed a stage before a restart
     for r in db.q("select s.json from scans s where json like '%\"pass\"%' and mint not in (select mint from audits)"): qa.put_nowait(json.loads(r["json"]))

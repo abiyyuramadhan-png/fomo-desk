@@ -1,6 +1,6 @@
 """Agent 1 · Scanner. Counts and cuts. Never judges quality."""
 import asyncio, json, time, logging, re, unicodedata, websockets
-import db, net, chain, fields, backfill, config as settings
+import db, net, chain, fields, backfill, wake as wakemod, config as settings
 log = logging.getLogger("scanner")
 flog = logging.getLogger("scanner.file")
 WS = "wss://pumpportal.fun/api/data"
@@ -9,13 +9,13 @@ def norm(s):
     return "".join(ch for ch in s if ch.isalpha() and ch.isascii())
 class Scanner:
     def __init__(self, out_q, notify=None):
-        self.out = out_q; self.notify = notify; self.reconnects = []; self.paused = False; self.wake = asyncio.Event()
+        self.out = out_q; self.notify = notify; self.reconnects = []; self.paused = False; self.wake = asyncio.Event(); self._ws = None; self._back_reset = False
     # ---------- backfill (missed migrations: ws gaps, box pauses) ----------
     async def backfill_loop(self, every=300):
         while True:
             try: await asyncio.wait_for(self.wake.wait(), every)
             except asyncio.TimeoutError: pass
-            self.wake.clear(); db.heartbeat("backfill", "sweeping")
+            self.wake.clear(); await wakemod.gate(); db.heartbeat("backfill", "sweeping")
             try:
                 win = settings.get("scanner.max_wait_min") * 60   # older coins could only be killed as 'never qualified'
                 got = await backfill.sweep(lambda sig: db.q1("select 1 from coins where signature=?", sig), win,
@@ -35,7 +35,8 @@ class Scanner:
         while True:
             silent = False
             try:
-                async with websockets.connect(WS, ping_interval=30) as w:
+                async with websockets.connect(WS, ping_interval=30, close_timeout=2) as w:   # wake close: dont wait 10s for a dead peer
+                    self._ws = w
                     await w.send(json.dumps({"method": "subscribeMigration"}))   # resubscribe on every (re)connect
                     flog.info("ws connected, subscribed to migrations"); self.wake.set()
                     back = 1; last = time.time()
@@ -50,7 +51,24 @@ class Scanner:
                 flog.info("ws error %s", e)
             if not silent: self.reconnects.append(time.time())
             db.kv_set("ws_silent", db.kv_get("ws_silent", 0) + (1 if silent else 0)); db.kv_set("ws_reconnects", [t for t in self.reconnects if time.time() - t < 3600])
+            self._ws = None
+            if self._back_reset: back = 1; self._back_reset = False   # wake: reconnect now, not after backoff
             flog.info("ws reconnect in %ss", back); await asyncio.sleep(back); back = min(back * 2, 60)
+    def force_reconnect(self):
+        """After a box pause the socket is dead but only notices at the next keepalive timeout (~50s seen).
+        Close it now so ws_loop reconnects and resubscribes immediately."""
+        self._back_reset = True
+        w = self._ws
+        if w is not None: asyncio.get_running_loop().create_task(w.close())
+    async def lookup_creator(self, mint):
+        creator = bal = None
+        try:
+            rep = await net.retry(net.rugcheck, mint, "report")
+            creator = rep.get(fields.FIELDS["rugcheck_report"]["creator"])
+            if creator: bal = await net.retry(chain.owner_balance, creator, mint)
+        except Exception as e: flog.info("%s creator lookup failed: %s", mint, str(e).splitlines()[0][:160])
+        db.x("update coins set creator=?, creator_bal=? where mint=?", creator, bal, mint)
+        return creator
     async def on_migration(self, m, at=None):
         F = fields.FIELDS["migration"]
         mint = m.get(F["mint"])
@@ -58,19 +76,15 @@ class Scanner:
         if db.q1("select 1 from coins where mint=?", mint): return
         db.x("insert into coins(mint,signature,migrated_at,raw,state,night) values(?,?,?,?, 'waiting',?)",
              mint, m.get(F["signature"]), at or time.time(), json.dumps(m), db.night_id(at))
-        # creator: not in migration message (approved) -> RugCheck report.creator; balance NOW
-        creator = bal = None
-        try:
-            rep = await net.retry(net.rugcheck, mint, "report")
-            creator = rep.get(fields.FIELDS["rugcheck_report"]["creator"])
-            if creator: bal = await net.retry(chain.owner_balance, creator, mint)
-        except Exception as e: flog.info("%s creator lookup failed: %s", mint, e)
-        db.x("update coins set creator=?, creator_bal=? where mint=?", creator, bal, mint)
+        # creator: not in migration message (approved) -> RugCheck report.creator; balance NOW.
+        # RugCheck 400s mints it hasn't indexed yet; decide() retries once before a pass.
+        await self.lookup_creator(mint)
     # ---------- polling ----------
     async def poll_loop(self):
         while True:
             t0 = time.time()
             try:
+                await wakemod.gate()
                 if not self.paused: await self.poll_once()
             except net.RateLimit:
                 flog.info("dexscreener 429, wait 30s"); await asyncio.sleep(30)
@@ -115,6 +129,8 @@ class Scanner:
         if wait_min > S["scanner.max_wait_min"]:
             return self.emit(c, p, "kill", "never qualified", now, t10, age)
         if age >= S["scanner.min_pool_age_min"] and t10 is not None:
+            if "creator" in c and not c["creator"]:
+                await self.lookup_creator(c["mint"])   # first lookup failed (e.g. RugCheck 400 on a brand-new mint)
             return self.emit(c, p, "pass", None, now, t10, age)
     def copycat(self, mint, name, symbol, S):
         runners = db.q("select mint,name,symbol from coins where mint<>? and last_h24>=? and night=?", mint, S["scanner.runner_h24_pct"], db.night_id())
