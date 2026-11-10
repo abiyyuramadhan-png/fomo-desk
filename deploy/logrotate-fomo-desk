@@ -1,0 +1,11 @@
+/var/log/fomo-desk/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    maxsize 20M
+    su fomo fomo
+}

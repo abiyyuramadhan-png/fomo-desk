@@ -1,0 +1,16 @@
+.secrets
+.env
+.env.*
+data/
+logs/
+publish/
+__pycache__/
+*.pyc
+*.pid
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+shots/
